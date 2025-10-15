@@ -257,8 +257,88 @@ def bfs_solve(start: List[str], max_depth: int = 8):
 
 
 def heuristic_lower_bound(state: List[str]) -> int:
-    # Admissible baseline heuristic (placeholder). Replace with PDB/CO/EO for stronger guidance.
-    return 0
+    # Lightweight admissible heuristic combining orientation lower bounds and facelet mismatch
+    # - corner orientation: a face turn twists 4 corners ⇒ ceil(#misoriented_corners / 4)
+    # - edge orientation: F/B turns flip 4 edges ⇒ ceil(#flipped_edges / 4)
+    co, eo = count_corner_edge_orientation(state)
+    h_orient = max((co + 3) // 4, (eo + 3) // 4)
+    # Very weak placement bound: stickers not matching their face center; one move can fix at most 8
+    mismatch = 0
+    for i in range(0, 54, 9):
+        center = state[i + 4]
+        face = state[i : i + 9]
+        mismatch += sum(1 for c in face if c != center)
+    h_place = (mismatch + 7) // 8
+    return max(h_orient, h_place)
+
+
+def count_corner_edge_orientation(state: List[str]) -> tuple[int, int]:
+    # Corner (8) and Edge (12) facelet index tables (URFDLB ordering)
+    C = [
+        8, 9 + 0, 18 + 2,  # URF: U8 R0 F2
+        6, 18 + 0, 36 + 2, # UFL: U6 F0 L2
+        0, 36 + 0, 45 + 2, # ULB: U0 L0 B2
+        2, 45 + 0, 9 + 2,  # UBR: U2 B0 R2
+        27 + 2, 18 + 8, 9 + 6,   # DFR
+        27 + 0, 36 + 8, 18 + 6,  # DLF
+        27 + 6, 45 + 8, 36 + 6,  # DBL
+        27 + 8, 9 + 8, 45 + 6,   # DRB
+    ]
+    E = [
+        5, 9 + 1,      # UR
+        7, 18 + 1,     # UF
+        3, 36 + 1,     # UL
+        1, 45 + 1,     # UB
+        27 + 5, 9 + 7, # DR
+        27 + 7, 18 + 7,# DF
+        27 + 3, 36 + 7,# DL
+        27 + 1, 45 + 7,# DB
+        18 + 5, 9 + 3, # FR
+        18 + 3, 36 + 5,# FL
+        45 + 5, 36 + 3,# BL
+        45 + 3, 9 + 5, # BR
+    ]
+
+    corner_names = [
+        ("U", "R", "F"), ("U", "F", "L"), ("U", "L", "B"), ("U", "B", "R"),
+        ("D", "F", "R"), ("D", "L", "F"), ("D", "B", "L"), ("D", "R", "B"),
+    ]
+    edge_names = [
+        ("U", "R"), ("U", "F"), ("U", "L"), ("U", "B"),
+        ("D", "R"), ("D", "F"), ("D", "L"), ("D", "B"),
+        ("F", "R"), ("F", "L"), ("B", "L"), ("B", "R"),
+    ]
+
+    misoriented_corners = 0
+    misoriented_edges = 0
+
+    # Corners: count if U/D color is not on U/D facelet position among the three
+    for i in range(8):
+        cols = [state[C[3 * i + 0]], state[C[3 * i + 1]], state[C[3 * i + 2]]]
+        # If this corner doesn't contain U or D, orientation determined by F/B vs L/R; approximate: don't count
+        if not any(c in ("U", "D") for c in cols):
+            continue
+        pos_ud_first = cols[0] in ("U", "D")
+        # Expect U/D to be at index 0 in our corner listing for top/bottom layers
+        if not pos_ud_first:
+            misoriented_corners += 1
+
+    # Edges: if U/D edge, U/D sticker should be first; else F/B sticker should be first
+    for i in range(12):
+        c0, c1 = state[E[2 * i + 0]], state[E[2 * i + 1]]
+        has_ud = (c0 in ("U", "D")) or (c1 in ("U", "D"))
+        if has_ud:
+            expected_ud_first = edge_names[i][0] in ("U", "D")
+            actual_ud_first = c0 in ("U", "D")
+            if expected_ud_first != actual_ud_first:
+                misoriented_edges += 1
+        else:
+            expected_fb_first = edge_names[i][0] in ("F", "B")
+            actual_fb_first = c0 in ("F", "B")
+            if expected_fb_first != actual_fb_first:
+                misoriented_edges += 1
+
+    return misoriented_corners, misoriented_edges
 
 
 def astar_solve(*_args, **_kwargs):

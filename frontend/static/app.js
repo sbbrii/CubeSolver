@@ -15,6 +15,7 @@ const FACE_COLORS = {
 };
 
 let state = FACE_ORDER.flatMap((f) => Array(9).fill(f));
+let suppressUI = false;
 
 const canvas = document.getElementById("scene");
 const container = document.querySelector(".stage");
@@ -249,14 +250,18 @@ function simulateMove(st, mv) {
   const copy = st.slice();
   // Reuse the local move functions on a copy by temporarily swapping global state
   const original = state;
+  const originalSuppress = suppressUI;
   try {
     state = copy;
+    suppressUI = true;
     applyLocalMove(mv);
     const out = state.slice();
     state = original;
+    suppressUI = originalSuppress;
     return out;
   } catch (e) {
     state = original;
+    suppressUI = originalSuppress;
     return null;
   }
 }
@@ -509,8 +514,10 @@ function applyLocalMove(mv) {
   if (base==="D") moveD(prime, half);
   if (base==="L") moveL(prime, half);
   if (base==="B") moveB(prime, half);
-  refreshColors();
-  updateMoveButtonsLegality();
+  if (!suppressUI) {
+    refreshColors();
+    updateMoveButtonsLegality();
+  }
 }
 
 // Manual move buttons
