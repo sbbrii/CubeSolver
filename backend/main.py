@@ -1,4 +1,4 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from typing import List, Literal, Dict, Any
@@ -56,6 +56,24 @@ def is_goal(state: List[str]) -> bool:
         if len(set(face)) != 1:
             return False
     return True
+
+
+def validate_cube_state(state: List[str]) -> tuple[bool, str | None]:
+    if not isinstance(state, list) or len(state) != 54:
+        return False, "state must have 54 entries"
+    counts: Dict[str, int] = {f: 0 for f in FACE_ORDER}
+    for c in state:
+        if c not in FACE_ORDER:
+            return False, f"invalid color '{c}'"
+        counts[c] += 1
+    for f in FACE_ORDER:
+        if counts[f] != 9:
+            return False, f"face {f} must have exactly 9 stickers"
+    # centers should be their own color (not enforced which color belongs to which face here)
+    centers = [state[i] for i in [4, 13, 22, 31, 40, 49]]
+    if any(c not in FACE_ORDER for c in centers):
+        return False, "invalid center color"
+    return True, None
 
 
 # Moves: For demo, we define a minimal subset and permutations on indices.
@@ -410,8 +428,9 @@ def ida_star_solve(start: List[str], max_depth: int = 40):
 @app.post("/solve", response_model=SolveResponse)
 def solve(req: SolveRequest) -> SolveResponse:
     state = req.state
-    if len(state) != 54:
-        raise ValueError("state must have 54 entries")
+    ok, reason = validate_cube_state(state)
+    if not ok:
+        raise HTTPException(status_code=400, detail=f"Invalid cube: {reason}")
 
     start_is_goal = is_goal(state)
     moves, explored, time_ms = ida_star_solve(state)
@@ -434,19 +453,47 @@ class ScrambleResponse(BaseModel):
 
 @app.get("/scramble", response_model=ScrambleResponse)
 def scramble() -> ScrambleResponse:
-    # Generate a valid scramble by applying random legal moves from a subset
+    # Generate a valid scramble by applying random legal moves from the full move set
     import random
-    state = []
+    def gen() -> List[str]:
+        st: List[str] = []
+        for face in FACE_ORDER:
+            st.extend([face] * 9)
+        allowed: List[Move] = [
+            "U","U'","U2","D","D'","D2","L","L'","L2","R","R'","R2","F","F'","F2","B","B'","B2"
+        ]
+        last_face: str | None = None
+        last_move: str | None = None
+        for _ in range(20):
+            candidates = []
+            for m in allowed:
+                # avoid immediate inverse and triple same-face repetition
+                if last_move and ((last_move == "U" and m == "U'") or (last_move == "U'" and m == "U") or
+                                  (last_move == "R" and m == "R'") or (last_move == "R'" and m == "R") or
+                                  (last_move == "F" and m == "F'") or (last_move == "F'" and m == "F") or
+                                  (last_move == "D" and m == "D'") or (last_move == "D'" and m == "D") or
+                                  (last_move == "L" and m == "L'") or (last_move == "L'" and m == "L") or
+                                  (last_move == "B" and m == "B'") or (last_move == "B'" and m == "B")):
+                    continue
+                face = m[0]
+                if last_face and face == last_face:
+                    continue
+                candidates.append(m)
+            mv = random.choice(candidates)
+            st = apply_move(st, mv)
+            last_move = mv if mv[-1] != "2" else face  # track for inverse check
+            last_face = mv[0]
+        return st
+    for _ in range(10):
+        s = gen()
+        ok, _ = validate_cube_state(s)
+        if ok:
+            return ScrambleResponse(state=s)
+    # Fallback to solved if validation repeatedly fails (should not happen)
+    solved: List[str] = []
     for face in FACE_ORDER:
-        state.extend([face] * 9)
-    allowed: List[Move] = ["U", "U'", "R", "R'", "F", "F'"]
-    last = None
-    for _ in range(12):
-        candidates = [m for m in allowed if not (last and ((last == "U" and m == "U'") or (last == "U'" and m == "U") or (last == "R" and m == "R'") or (last == "R'" and m == "R") or (last == "F" and m == "F'") or (last == "F'" and m == "F")))]
-        mv = random.choice(candidates)
-        state = apply_move(state, mv)
-        last = mv
-    return ScrambleResponse(state=state)
+        solved.extend([face] * 9)
+    return ScrambleResponse(state=solved)
 
 
 if __name__ == "__main__":
