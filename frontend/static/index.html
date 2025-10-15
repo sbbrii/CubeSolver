@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>AI Rubik's Cube Solver (CST401)</title>
+    <link rel="stylesheet" href="./style.css" />
+  </head>
+  <body>
+    <div class="layout">
+      <div class="sidebar">
+        <h1>Rubik's Cube Solver</h1>
+        <div class="panel">
+          <h2>Controls</h2>
+          <button id="btn-reset">Reset</button>
+          <button id="btn-randomize">Randomize</button>
+          <div style="margin-top:8px"></div>
+          <div>
+            <button id="mv-U">U</button>
+            <button id="mv-Up">U'</button>
+            <button id="mv-U2">U2</button>
+          </div>
+          <div style="margin-top:6px">
+            <button id="mv-R">R</button>
+            <button id="mv-Rp">R'</button>
+            <button id="mv-R2">R2</button>
+          </div>
+          <div style="margin-top:6px">
+            <button id="mv-F">F</button>
+            <button id="mv-Fp">F'</button>
+            <button id="mv-F2">F2</button>
+          </div>
+          <div style="margin-top:6px">
+            <button id="mv-D">D</button>
+            <button id="mv-Dp">D'</button>
+            <button id="mv-D2">D2</button>
+          </div>
+          <div style="margin-top:6px">
+            <button id="mv-L">L</button>
+            <button id="mv-Lp">L'</button>
+            <button id="mv-L2">L2</button>
+          </div>
+          <div style="margin-top:6px">
+            <button id="mv-B">B</button>
+            <button id="mv-Bp">B'</button>
+            <button id="mv-B2">B2</button>
+          </div>
+        </div>
+        <div class="panel">
+          <h2>AI Algorithm</h2>
+          <div style="opacity:0.8;">IDA* (fixed)</div>
+          <button id="btn-solve">Solve</button>
+        </div>
+        <div class="panel">
+          <h2>Metrics</h2>
+          <div id="metrics"></div>
+        </div>
+        <div class="panel">
+          <h2>Legend</h2>
+          <div class="legend">
+            <div><span class="swatch U"></span> U</div>
+            <div><span class="swatch R"></span> R</div>
+            <div><span class="swatch F"></span> F</div>
+            <div><span class="swatch D"></span> D</div>
+            <div><span class="swatch L"></span> L</div>
+            <div><span class="swatch B"></span> B</div>
+          </div>
+        </div>
+        <div class="panel">
+          <h2>Notes</h2>
+          <p>Click a sticker to cycle its color. Drag to rotate the cube.</p>
+          <p>Solution playback rotates the corresponding face.</p>
+        </div>
+      </div>
+      <div class="stage">
+        <canvas id="scene"></canvas>
+      </div>
+    </div>
+
+    <script src="https://unpkg.com/three@0.159.0/build/three.min.js"></script>
+    <script src="./app.js"></script>
+  </body>
+  </html>
+
+
