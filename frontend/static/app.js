@@ -293,6 +293,8 @@ function updateMoveButtonsLegality() {
   }
 }
 
+// (Removed advanced local scramble in favor of backend-provided scramble)
+
 refreshColors();
 
 // Picking
@@ -300,11 +302,16 @@ const raycaster = new THREE.Raycaster();
 const mouse = new THREE.Vector2();
 
 function cycleColor(faceletIndex) {
+  // Prevent changing centers (indices 4,13,22,31,40,49)
+  if (faceletIndex === 4 || faceletIndex === 13 || faceletIndex === 22 || faceletIndex === 31 || faceletIndex === 40 || faceletIndex === 49) {
+    return;
+  }
   const cur = state[faceletIndex];
   const order = FACE_ORDER;
   const next = order[(order.indexOf(cur) + 1) % order.length];
   state[faceletIndex] = next;
   refreshColors();
+  onColorChanged();
 }
 
 renderer.domElement.addEventListener("pointerdown", (e) => {
@@ -333,6 +340,10 @@ requestAnimationFrame(animate);
 document.getElementById("btn-reset").onclick = () => {
   state = FACE_ORDER.flatMap((f) => Array(9).fill(f));
   refreshColors();
+  updateMoveButtonsLegality();
+  renderMetrics({ status: "ready", algorithm: "ida*" });
+  const btnSolve = document.getElementById("btn-solve");
+  if (btnSolve) btnSolve.disabled = false;
 };
 
 document.getElementById("btn-randomize").onclick = async () => {
@@ -341,6 +352,8 @@ document.getElementById("btn-randomize").onclick = async () => {
     const data = await res.json();
     state = data.state;
     refreshColors();
+    updateMoveButtonsLegality();
+    onColorChanged();
   } catch (e) {
     console.error(e);
   }
@@ -368,10 +381,53 @@ function renderMetrics(obj) {
   el.innerHTML = lines.join("");
 }
 
+// ---- Validation helpers and control gating ----
+function getValidationError(st) {
+  const res = isLegalCubeState(st);
+  if (!res.ok) return res.reason || "Invalid state";
+  return null;
+}
+
+function validateCubeState(cubeState) {
+  return getValidationError(cubeState) === null;
+}
+
+function setMoveButtonsDisabled(disabled) {
+  const ids = [
+    "mv-U","mv-Up","mv-U2","mv-R","mv-Rp","mv-R2","mv-F","mv-Fp","mv-F2",
+    "mv-D","mv-Dp","mv-D2","mv-L","mv-Lp","mv-L2","mv-B","mv-Bp","mv-B2"
+  ];
+  for (const id of ids) {
+    const el = document.getElementById(id);
+    if (el) el.disabled = disabled ? true : el.disabled;
+  }
+}
+
+function onColorChanged() {
+  updateMoveButtonsLegality();
+  const err = getValidationError(state);
+  const btnSolve = document.getElementById("btn-solve");
+  if (err) {
+    renderMetrics({ error: `❌ Invalid Cube Configuration: ${err}` });
+    if (btnSolve) btnSolve.disabled = true;
+    setMoveButtonsDisabled(true);
+  } else {
+    if (btnSolve) btnSolve.disabled = false;
+  }
+}
+
 async function solve() {
   const btnSolve = document.getElementById("btn-solve");
   const btnReset = document.getElementById("btn-reset");
   const btnRand = document.getElementById("btn-randomize");
+  // Validate before attempting to solve
+  const err = getValidationError(state);
+  if (err) {
+    renderMetrics({ error: `❌ Invalid Cube Configuration: ${err}` });
+    if (btnSolve) btnSolve.disabled = true;
+    setMoveButtonsDisabled(true);
+    return;
+  }
   btnSolve.disabled = true; btnReset.disabled = true; btnRand.disabled = true;
   renderMetrics({ status: "solving...", algorithm: "ida*" });
   const body = { state };
